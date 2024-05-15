@@ -10,10 +10,12 @@ import * as GlobalStyles from '../../styles/GlobalStyles'
 import { AuthorizationContext } from '../../context/AuthorizationContext'
 import { showMessage } from 'react-native-flash-message'
 import restaurantLogo from '../../../assets/restaurantLogo.jpeg'
+import { useRoute } from '@react-navigation/native'
 
 export default function RestaurantsScreen ({ navigation }) {
   const [restaurants, setRestaurants] = useState([])
   const { loggedInUser } = useContext(AuthorizationContext)
+  const route = useRoute()
 
   useEffect(() => {
     async function fetchRestaurants () {
@@ -34,7 +36,7 @@ export default function RestaurantsScreen ({ navigation }) {
     } else {
       setRestaurants(null)
     }
-  }, [loggedInUser])
+  }, [loggedInUser, route])
 
   const renderRestaurant = ({ item }) => {
     return (

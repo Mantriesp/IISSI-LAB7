@@ -2,21 +2,73 @@ import React, { useEffect, useState } from 'react'
 import { Image, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native'
 import * as ExpoImagePicker from 'expo-image-picker'
 import { MaterialCommunityIcons } from '@expo/vector-icons'
-
+import { ErrorMessage, Formik, TextError } from 'formik'
+import * as yup from 'yup'
 import DropDownPicker from 'react-native-dropdown-picker'
-import { getRestaurantCategories } from '../../api/RestaurantEndpoints'
+import { getRestaurantCategories, create } from '../../api/RestaurantEndpoints'
 import InputItem from '../../components/InputItem'
 import TextRegular from '../../components/TextRegular'
 import * as GlobalStyles from '../../styles/GlobalStyles'
 import restaurantLogo from '../../../assets/restaurantLogo.jpeg'
 import restaurantBackground from '../../../assets/restaurantBackground.jpeg'
-import { showMessage } from 'react-native-flash-message'
-import { Formik } from 'formik'
+import { showMessage, navigation } from 'react-native-flash-message'
 
 export default function CreateRestaurantScreen () {
   const initialRestaurantValues = { name: null, description: null, address: null, postalCode: null, url: null, shippingCosts: null, email: null, phone: null, restaurantCategoryId: null }
   const [open, setOpen] = useState(false)
   const [restaurantCategories, setRestaurantCategories] = useState([])
+  const [backendErrors, setBackendErrors] = useState()
+  const createRestaurant = async (values) => {
+    setBackendErrors([])
+    try {
+      const createdRestaurant = await create(values)
+      showMessage({
+        message: `Restaurant ${createdRestaurant.name} succesfully created`,
+        type: 'success',
+        style: GlobalStyles.flashStyle,
+        titleStyle: GlobalStyles.flashTextStyle
+      })
+      navigation.navigate('RestaurantsScreen', { dirty: true })
+    } catch (error) {
+      console.log(error)
+      setBackendErrors(error.errors)
+    }
+  }
+  const validationSchema = yup.object().shape({
+    name: yup
+      .string()
+      .max(255, 'Name too long')
+      .required('Name is required'),
+    address: yup
+      .string()
+      .max(255, 'Address too long')
+      .required('Address is required'),
+    postalCode: yup
+      .string()
+      .max(255, 'Postal code too long')
+      .required('Postal code is required'),
+    url: yup
+      .string()
+      .nullable()
+      .url('Please enter a valid url'),
+    shippingCosts: yup
+      .number()
+      .positive('Please provide a valid shipping cost value')
+      .required('Shipping costs value is required'),
+    email: yup
+      .string()
+      .nullable()
+      .email('Please enter a valid email'),
+    phone: yup
+      .string()
+      .nullable()
+      .max(255, 'Phone too long'),
+    restaurantCategoryId: yup
+      .number()
+      .positive()
+      .integer()
+      .required('Restaurant category is required')
+  })
 
   useEffect(() => {
     async function fetchRestaurantCategories () {
@@ -68,9 +120,11 @@ export default function CreateRestaurantScreen () {
 
   return (
     <Formik
+    validationSchema={validationSchema}
     initialValues={initialRestaurantValues}
+    onSubmit={createRestaurant}
     >
-      {({ setFieldValue, values }) => (
+      {({ handleSubmit, setFieldValue, values }) => (
         <ScrollView>
           <View style={{ alignItems: 'center' }}>
             <View style={{ width: '60%' }}>
@@ -108,26 +162,27 @@ export default function CreateRestaurantScreen () {
               />
 
               <DropDownPicker
-                open={open}
-                value={values.restaurantCategoryId}
-                items={restaurantCategories}
-                setOpen={setOpen}
-                onSelectItem={ item => {
-                  setFieldValue('restaurantCategoryId', item.value)
-                }}
-                setItems={setRestaurantCategories}
-                placeholder="Select the restaurant category"
-                containerStyle={{ height: 40, marginTop: 20 }}
-                style={{ backgroundColor: GlobalStyles.brandBackground }}
-                dropDownStyle={{ backgroundColor: '#fafafa' }}
+               open={open}
+               value={values.restaurantCategoryId}
+               items={restaurantCategories}
+               setOpen={setOpen}
+               onSelectItem={ item => {
+                 setFieldValue('restaurantCategoryId', item.value)
+               }}
+               setItems={setRestaurantCategories}
+               placeholder='Select the restaurant category'
+               containerStyle={{ height: 40, marginTop: 20 }}
+               style={{ backgroundColor: GlobalStyles.brandBackground }}
+               dropDownStyle={{ backgroundColor: '#fafafa' }}
               />
-
-              <Pressable onPress={() =>
-                pickImage(
-                  async result => {
-                    await setFieldValue('logo', result)
-                  }
-                )
+              <ErrorMessage name={'restaurantCategoryId'} render={msg => <TextError>{msg}</TextError> }/>
+              <Pressable
+                 onPress={() =>
+                   pickImage(
+                     async result => {
+                       await setFieldValue('logo', result)
+                     }
+                   )
               }
                 style={styles.imagePicker}
               >
@@ -135,12 +190,13 @@ export default function CreateRestaurantScreen () {
                 <Image style={styles.image} source={values.logo ? { uri: values.logo.assets[0].uri } : restaurantLogo} />
               </Pressable>
 
-              <Pressable onPress={() =>
-                pickImage(
-                  async result => {
-                    await setFieldValue('heroImage', result)
-                  }
-                )
+              <Pressable
+                onPress={() =>
+                  pickImage(
+                    async result => {
+                      await setFieldValue('heroImage', result)
+                    }
+                  )
               }
                 style={styles.imagePicker}
               >
@@ -149,7 +205,7 @@ export default function CreateRestaurantScreen () {
               </Pressable>
 
               <Pressable
-                onPress={() => console.log('Submit pressed')}
+                onPress={handleSubmit}
                 style={({ pressed }) => [
                   {
                     backgroundColor: pressed
@@ -161,6 +217,9 @@ export default function CreateRestaurantScreen () {
               <View style={[{ flex: 1, flexDirection: 'row', justifyContent: 'center' }]}>
                 <MaterialCommunityIcons name='content-save' color={'white'} size={20}/>
                 <TextRegular textStyle={styles.text}>
+                {backendErrors &&
+                  backendErrors.map((error, index) => <TextError key={index}>{error.msg}</TextError>)
+                }
                   Save
                 </TextRegular>
               </View>
